@@ -6,6 +6,7 @@ import streamlit as st
 from chat import chat_with_ollama
 from data_processing.DB import upload_to_pinecone
 from data_processing.chunkers import chunk_pdf
+from langchain_community.document_loaders.pdf import PyPDFLoader
 
 st.title("Chat with Ollama")
 
@@ -31,8 +32,14 @@ uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
 
 if uploaded_file is not None:
     with st.spinner("Processing PDF..."):
+        # Save the uploaded file to a temporary location
+        with open(os.path.join("/tmp", uploaded_file.name), "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
         # Process the uploaded PDF file
-        docs = chunk_pdf(uploaded_file)
+        pdf_path = os.path.join("/tmp", uploaded_file.name)
+        docs = chunk_pdf(pdf_path)
+        
         # Upload the processed documents to Pinecone
         success = upload_to_pinecone(index_name, docs, namespace, dimensions, embedding_model)
         if success:
