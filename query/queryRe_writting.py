@@ -25,7 +25,6 @@ def re_write_query(query):
 
     retriever = vector_store_retriever("main-db", "Hands on Machine Learning with Scikit Learn and TensorFlow.pdf")
 
-    # Retrieve
     retrieval_chain = generate_queries | retriever.map() | get_unique_union
     docs = retrieval_chain.invoke({"query": query})
     
