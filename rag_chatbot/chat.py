@@ -22,7 +22,6 @@ def chat_with_ollama(model_name,question):
 
     chat_prompt = ChatPromptTemplate.from_template(prompt)
 
-    # Start the chat
     chat = (chat_prompt | ollama | output_parser)
 
     output = chat.invoke({"context":context, "question":question})
