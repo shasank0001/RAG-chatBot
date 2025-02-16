@@ -11,10 +11,11 @@ from langchain_community.document_loaders.pdf import PyPDFLoader
 st.title("Chat with Ollama")
 
 # Section for chatting with Ollama
-st.header("Chat with Ollama")
+st.header("Doc Bot")
 model_name = st.text_input("Model Name", "llama3.2:1b")
 question = st.text_area("Question", "What are the topics covered in this book?")
 
+#updata the model name
 if st.button("Ask"):
     with st.spinner("Generating response..."):
         response = chat_with_ollama(model_name, question)
@@ -36,11 +37,10 @@ if uploaded_file is not None:
         with open(os.path.join("/tmp", uploaded_file.name), "wb") as f:
             f.write(uploaded_file.getbuffer())
         
-        # Process the uploaded PDF file
+        
         pdf_path = os.path.join("/tmp", uploaded_file.name)
         docs = chunk_pdf(pdf_path)
         
-        # Upload the processed documents to Pinecone
         success = upload_to_pinecone(index_name, docs, namespace, dimensions, embedding_model)
         if success:
             st.success("PDF uploaded to Pinecone successfully!")
