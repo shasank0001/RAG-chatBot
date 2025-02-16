@@ -11,6 +11,7 @@ env_path = find_dotenv()
 
 load_dotenv(env_path)
 Pinecone_key = os.getenv("Pinecone_key")
+
 def upload_to_pinecone(index_name, docs, namespace, dimensions=None, embedding_model="bge-m3:latest"):
     pc = Pinecone(api_key=Pinecone_key)
     existing_indexes = [index_info["name"] for index_info in pc.list_indexes()]
