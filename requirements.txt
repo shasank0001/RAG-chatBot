@@ -3,5 +3,9 @@ flake8
 isort
 mkdocs
 pip
+langchain-ollama
+langchain-core
+streamlit
+langchain-community
 python-dotenv
 -e .
