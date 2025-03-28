@@ -1,10 +1,11 @@
 import sys
 import os
+import PyPDF2
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 from chat import chat_with_doc
-from chat import basic_chat
+from chat import basic_chat , chat_with_code ,chat_with_reasoning_model
 from data_processing.DB import upload_to_pinecone
 from data_processing.chunkers import chunk_pdf
 from langchain_community.document_loaders.pdf import PyPDFLoader
@@ -144,17 +145,15 @@ if "show_upload" not in st.session_state:
     st.session_state.show_upload = False
 
 with st.sidebar:
-    st.image("https://raw.githubusercontent.com/streamlit/streamlit/develop/examples/streamlit_app_demo/example/logo.png", width=100)
     st.title("RAG Chatbot")
     st.markdown("---")
-    chat_mode = st.radio("Select Chat Mode", ["Basic Chat", "Chat with Document"])
+    chat_mode = st.radio("Select Chat Mode", ["Basic Chat", "Chat with Document","code Assistant","Reasoning Assistant"])
     # Upload section
     st.header("📁 Document Upload")
-    index_name = st.text_input("Index Name", "main-db")
+    index_name = "main-db"
     namespace = st.text_input("Namespace", "default")
-    dimensions = st.number_input("Dimensions", min_value=1, value=1024)
-    embedding_model = st.text_input("Embedding Model", "bge-m3:latest")
-    
+    dimensions = 1024
+    embedding_model = "bge-m3:latest"
     uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
     
     if uploaded_file is not None:
@@ -183,7 +182,35 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# Main chat interface
+
+file_content = ""
+uploaded_file = st.file_uploader(
+    "Upload a File",
+    type=["py", "js", "java", "cpp", "c", "cs", "rb", "go", "php", "html", "css", "json", "xml", "txt", "pdf"],
+    label_visibility="collapsed"
+)
+if uploaded_file is not None:
+    try:
+        if uploaded_file.name.endswith(".pdf"):
+            # Handle PDF files
+            pdf_reader = PyPDF2.PdfReader(uploaded_file)
+            file_content = ""
+            for page in pdf_reader.pages:
+                file_content += page.extract_text()
+            st.success(f"📄 PDF file '{uploaded_file.name}' uploaded and processed successfully!")
+        else:
+            # Handle other text-based files
+            file_content = uploaded_file.read().decode("utf-8")
+            st.success(f"📄 File '{uploaded_file.name}' uploaded successfully!")
+    except UnicodeDecodeError:
+        try:
+            # Fallback to reading the file with 'latin-1' encoding for non-PDF files
+            file_content = uploaded_file.read().decode("latin-1")
+            st.warning(f"📄 File '{uploaded_file.name}' uploaded with fallback encoding (latin-1).")
+        except Exception as e:
+            st.error(f"❌ Failed to read the file: {str(e)}")
+    except Exception as e:
+        st.error(f"❌ Failed to process the file: {str(e)}")
 col1, col2 = st.columns([2, 1])
 with col1:
 
@@ -204,6 +231,7 @@ with col1:
             ):
                 st.markdown(message["content"])
 
+
     # Handle new messages
     if prompt := st.chat_input("Message AI Assistant...", key="chat_input"):
         # Add user message
@@ -216,13 +244,22 @@ with col1:
             
             if chat_mode == "Chat with Document":
                 response_generator = chat_with_doc(model_name, prompt)
-            else:
-                response_generator = basic_chat(model_name, prompt)
-            
+            elif chat_mode == "Basic Chat":
+                response_generator = basic_chat(model_name, prompt + file_content)
+                file_content = ""
+            elif chat_mode == "code Assistant":
+                response_generator = chat_with_code( prompt , file_content)
+                file_content = ""
+            elif chat_mode == "Reasoning Assistant":
+                print("im in")
+                response_generator = chat_with_reasoning_model(prompt,file_content)
+                file_content = ""
+
             for chunk in response_generator:
-                full_response += chunk
-                message_placeholder.markdown(full_response + "▌")
-            
+                if isinstance(chunk, str):  # Ensure the chunk is a string
+                    full_response += chunk
+                    message_placeholder.markdown(full_response + "▌")  # Show typing effect
+        
             message_placeholder.markdown(full_response)
             
             # Add assistant response to history
