@@ -3,6 +3,12 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain.prompts import ChatPromptTemplate
 from query.queryRe_writting import re_write_query
 from data_processing.DB import vector_store_retriever
+import google.generativeai as genai
+from langchain_google_genai import ChatGoogleGenerativeAI
+from dotenv import load_dotenv
+import os
+load_dotenv()
+
 
 def chat_with_doc(model_name, question):
     ollama = OllamaLLM(
@@ -79,3 +85,34 @@ def chat_with_reasoning_model(question, file_content):
     response = chat.stream({"file_content":file_content , "question": question})
 
     return response
+
+
+def chat_with_gemini(pre_chat,prompt, context=""):
+    os.getenv("GOOGLE_API_KEY")
+    try:
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-001")
+        output_parser = StrOutputParser()
+        
+        template = """
+        past_chat: {pre_chat}
+        Context: {context}
+        Question: {prompt}
+        
+        Please provide a helpful response based on the past_chat , context and question above.
+        If no context is provided, just answer the question directly.
+        """
+        
+        chat_prompt = ChatPromptTemplate.from_template(template)
+        chain = chat_prompt | llm | output_parser
+        
+        response = chain.invoke({
+            "context": context,
+            "prompt": prompt,
+            "pre_chat": pre_chat
+        })
+        
+        return response
+        
+    except Exception as e:
+        return f"Error: {str(e)}" 

@@ -2,13 +2,63 @@ import sys
 import os
 import PyPDF2
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import google.generativeai as genai  
+
 
 import streamlit as st
 from chat import chat_with_doc
-from chat import basic_chat , chat_with_code ,chat_with_reasoning_model
+from chat import basic_chat , chat_with_code ,chat_with_reasoning_model,chat_with_gemini
 from data_processing.DB import upload_to_pinecone
 from data_processing.chunkers import chunk_pdf
 from langchain_community.document_loaders.pdf import PyPDFLoader
+from fpdf import FPDF
+from docx import Document
+import markdown
+import io
+
+def export_chat_to_pdf(messages, filename="chat_history.pdf"):
+    def clean_text(text):
+        # Replace emojis and special characters with their text equivalents or remove them
+        emoji_mapping = {
+            '🤖': '[BOT]',
+            '👤': '[USER]',
+            '✅': '[SUCCESS]',
+            '❌': '[ERROR]',
+            '📄': '[FILE]',
+            '💾': '[SAVE]',
+            '📥': '[DOWNLOAD]',
+            '⚠️': '[WARNING]'
+        }
+        
+        # Replace known emojis with their text versions
+        for emoji, replacement in emoji_mapping.items():
+            text = text.replace(emoji, replacement)
+            
+        # Remove any remaining non-latin1 characters
+        return ''.join(char for char in text if ord(char) < 256)
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    
+    pdf.set_text_color(0, 0, 0)  # Black text color
+    pdf.cell(200, 10, txt="Chat History", ln=True, align="C")
+    pdf.ln(10)  # Add a line break
+
+    for message in messages:
+        role = "Assistant" if message["role"] == "assistant" else "User"
+        pdf.set_font("Arial", style="B", size=12)
+        pdf.cell(0, 10, txt=f"{role}:", ln=True)
+        pdf.set_font("Arial", size=12)
+        
+        # Clean the message content before adding to PDF
+        cleaned_content = clean_text(message["content"])
+        pdf.multi_cell(0, 10, txt=cleaned_content)
+        pdf.ln(5)  # Add some spacing between messages
+
+    pdf.output(filename)
+    return filename
 
 
 # Page configuration
@@ -172,16 +222,46 @@ with st.sidebar:
                 st.error("❌ Upload failed")
     
     st.markdown("---")
-    model_name = st.selectbox(
+    model_type = st.selectbox(
         "Select Model",
-        ["llama3.2:1b"],
+        ["Air","Pro","Max","cloud"],
         index=0
     )
-    
+    if model_type == "Air":
+        model_name = "llama3.2:1b" # change this to the actual model name
+    elif model_type == "Pro":
+        model_name = "gemma3:12b-it-q8_0"
+    elif model_type == "Max":
+        model_name = "gemma3:27b-it-q8_0"
+    elif model_type == "cloud":
+        model_name = "gemini-2.5-pro"
+       # Add Gemini API configuration
+    if model_type == "cloud":
+        gemini_api_key = st.text_input("Enter Gemini API Key", type="password")
+        if gemini_api_key:
+            genai.configure(api_key=gemini_api_key)
+
     if st.button("🗑️ Clear Chat"):
         st.session_state.messages = []
         st.rerun()
 
+
+with st.sidebar:
+    # ...existing code...
+    if st.button("💾 Save Chat as PDF"):
+        if st.session_state.messages:
+            with st.spinner("Saving chat to PDF..."):
+                pdf_file = export_chat_to_pdf(st.session_state.messages)
+                st.success("✅ Chat saved as PDF!")
+                with open(pdf_file, "rb") as f:
+                    st.download_button(
+                        label="📥 Download Chat PDF",
+                        data=f,
+                        file_name="chat_history.pdf",
+                        mime="application/pdf"
+                    )
+        else:
+            st.warning("⚠️ No chat messages to save!")
 
 file_content = ""
 uploaded_file = st.file_uploader(
@@ -241,39 +321,39 @@ with col1:
         with st.chat_message("assistant", avatar="🤖"):
             message_placeholder = st.empty()
             full_response = ""
-            
-            if chat_mode == "Chat with Document":
-                response_generator = chat_with_doc(model_name, prompt)
-            elif chat_mode == "Basic Chat":
-                response_generator = basic_chat(model_name, prompt + file_content)
-                file_content = ""
-            elif chat_mode == "code Assistant":
-                response_generator = chat_with_code( prompt , file_content)
-                file_content = ""
-            elif chat_mode == "Reasoning Assistant":
-                print("im in")
-                response_generator = chat_with_reasoning_model(prompt,file_content)
+            if model_type == "cloud":
+                response_generator =  chat_with_gemini(st.session_state.messages,prompt, file_content)
+                print("Gemini response generator:", response_generator)
+                full_response = response_generator
                 file_content = ""
 
-            for chunk in response_generator:
-                if isinstance(chunk, str):  # Ensure the chunk is a string
-                    full_response += chunk
-                    message_placeholder.markdown(full_response + "▌")  # Show typing effect
-        
-            message_placeholder.markdown(full_response)
+            else:
+                if chat_mode == "Chat with Document":
+                    response_generator = chat_with_doc(model_name, prompt)
+                elif chat_mode == "Basic Chat":
+                    response_generator = basic_chat(model_name, prompt + file_content)
+                    file_content = ""
+                elif chat_mode == "code Assistant":
+                    response_generator = chat_with_code( prompt , file_content)
+                    file_content = ""
+                elif chat_mode == "Reasoning Assistant":
+                    response_generator = chat_with_reasoning_model(prompt,file_content)
+                    file_content = ""
+
+                for chunk in response_generator:
+                    if isinstance(chunk, str):  # Ensure the chunk is a string
+                        full_response += chunk
+                        message_placeholder.markdown(full_response + "▌")  # Show typing effect
             
+                message_placeholder.markdown(full_response)
+            
+                
             # Add assistant response to history
             st.session_state.messages.append({
                 "role": "assistant", 
                 "content": full_response
             })
+        print(st.session_state.messages)
         
         st.rerun()
         
-with col2:
-    st.header("📊 Chat Information")
-    st.info(f"""
-    - Model: {model_name}
-    - Messages: {len(st.session_state.messages)}
-    - Index: {index_name}
-    """)
