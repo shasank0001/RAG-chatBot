@@ -67,7 +67,7 @@ def chat_with_code(question, code):
 
 
 def chat_with_reasoning_model(question, file_content):
-    model_name = "exaone-deep:2.4b-q8_0"
+    model_name = "exaone-deep:2.4b-q8_0" #deepseek-r1:14b-qwen-distill-q8_0
     ollama = OllamaLLM(
         model=model_name,
         streaming=True
@@ -87,31 +87,33 @@ def chat_with_reasoning_model(question, file_content):
     return response
 
 
-def chat_with_gemini(pre_chat,prompt, context=""):
+def chat_with_gemini(pre_chat, prompt, context="", image=None):
     os.getenv("GOOGLE_API_KEY")
     try:
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        
+            # Use regular gemini for text-only processing
         llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-001")
         output_parser = StrOutputParser()
         
         template = """
-        past_chat: {pre_chat}
-        Context: {context}
-        Question: {prompt}
-        
-        Please provide a helpful response based on the past_chat , context and question above.
-        If no context is provided, just answer the question directly.
-        """
-        
+            past_chat: {pre_chat}
+            Context: {context}
+            Question: {prompt}
+            
+            Please provide a helpful response based on the past_chat, context and question above.
+            If no context is provided, just answer the question directly.
+            """
+            
         chat_prompt = ChatPromptTemplate.from_template(template)
         chain = chat_prompt | llm | output_parser
         
         response = chain.invoke({
-            "context": context,
-            "prompt": prompt,
-            "pre_chat": pre_chat
-        })
-        
+                "context": context,
+                "prompt": prompt,
+                "pre_chat": pre_chat
+            })
+            
         return response
         
     except Exception as e:

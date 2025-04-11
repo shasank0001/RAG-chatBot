@@ -7,7 +7,7 @@ import google.generativeai as genai
 
 import streamlit as st
 from chat import chat_with_doc
-from chat import basic_chat , chat_with_code ,chat_with_reasoning_model,chat_with_gemini
+from chat import basic_chat , chat_with_code ,chat_with_reasoning_model
 from data_processing.DB import upload_to_pinecone
 from data_processing.chunkers import chunk_pdf
 from langchain_community.document_loaders.pdf import PyPDFLoader
@@ -15,6 +15,7 @@ from fpdf import FPDF
 from docx import Document
 import markdown
 import io
+from PIL import Image
 
 def export_chat_to_pdf(messages, filename="chat_history.pdf"):
     def clean_text(text):
@@ -84,11 +85,59 @@ st.markdown("""
         background: var(--main-bg);
     }
     
+    /* Background image will be added dynamically when uploaded */
+    
     /* Main container styling */
     .main .block-container {
         padding: 2rem 3rem;
         max-width: 1200px;
         margin: 0 auto;
+    }
+    
+    /* Transparent Sidebar with glass effect */
+    [data-testid="stSidebar"] {
+        background-color: rgba(31, 31, 31, 0.7) !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+        padding: 2rem 1rem;
+    }
+    
+    /* Add slight glow to sidebar elements for better readability */
+    [data-testid="stSidebar"] .stMarkdown, 
+    [data-testid="stSidebar"] .stText, 
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3, 
+    [data-testid="stSidebar"] label {
+        text-shadow: 0 0 5px rgba(0,0,0,0.5);
+    }
+    
+    /* Style sidebar widgets to match transparent theme */
+    [data-testid="stSidebar"] [data-testid="stRadio"],
+    [data-testid="stSidebar"] [data-testid="stSelectbox"] > div:first-child,
+    [data-testid="stSidebar"] [data-testid="stTextInput"] > div:first-child {
+        background-color: rgba(45, 45, 45, 0.6) !important;
+        border-radius: 8px;
+        padding: 0.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(5px);
+    }
+    
+    /* File uploader styling to match transparent theme */
+    [data-testid="stSidebar"] [data-testid="stFileUploader"] {
+        background-color: rgba(45, 45, 45, 0.6) !important;
+        border-radius: 12px;
+        padding: 1rem;
+        border: 1px dashed rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(5px);
+    }
+    
+    /* Button styling in sidebar */
+    [data-testid="stSidebar"] .stButton button {
+        background: rgba(45, 90, 247, 0.8) !important;
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
     }
     
     /* Chat messages */
@@ -132,13 +181,6 @@ st.markdown("""
     .stChatInput input:focus {
         border-color: var(--accent) !important;
         box-shadow: 0 0 0 2px rgba(45,90,247,0.2) !important;
-    }
-    
-    /* Sidebar improvements */
-    [data-testid="stSidebar"] {
-        background: var(--secondary-bg);
-        border-right: 1px solid var(--border);
-        padding: 2rem 1rem;
     }
     
     /* Buttons */
@@ -197,7 +239,93 @@ if "show_upload" not in st.session_state:
 with st.sidebar:
     st.title("RAG Chatbot")
     st.markdown("---")
-    chat_mode = st.radio("Select Chat Mode", ["Basic Chat", "Chat with Document","code Assistant","Reasoning Assistant"])
+    chat_mode = st.radio("Select Chat Mode", ["Basic Chat", "Chat with Document", "code Assistant", "Reasoning Assistant"])
+    
+    # Background image upload
+    st.header("🖼️ Background Image")
+    
+    # Default background options
+    default_bg_option = st.selectbox(
+        "Choose a default background:",
+        ["None", "Gradient Dark", "Blue Abstract", "Matrix Code", "Starry Night"]
+    )
+    
+    # Apply default background based on selection
+    if default_bg_option != "None":
+        if default_bg_option == "Gradient Dark":
+            bg_url = "https://images.unsplash.com/photo-1557682250-33bd709cbe85"
+        elif default_bg_option == "Blue Abstract":
+            bg_url = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809"
+        elif default_bg_option == "Matrix Code":
+            bg_url = "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5"
+        elif default_bg_option == "Starry Night":
+            bg_url = "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a"
+            
+        st.markdown(
+            f"""
+            <style>
+            .stApp {{
+                background-image: url({bg_url}) !important;
+                background-size: cover !important;
+                background-position: center !important;
+                background-repeat: no-repeat !important;
+                background-attachment: fixed !important;
+            }}
+            .stApp::before {{
+                content: "";
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(15, 15, 15, 0.7);
+                z-index: -1;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    # Custom background upload
+    st.write("Or upload your own:")
+    bg_image = st.file_uploader("Upload background image", type=["jpg", "jpeg", "png"])
+    if bg_image is not None:
+        # Convert the uploaded image to base64
+        import base64
+        from io import BytesIO
+        
+        image = Image.open(bg_image)
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        # Set the background image using custom CSS with !important to override other styles
+        st.markdown(
+            f"""
+            <style>
+            .stApp {{
+                background-image: url(data:image/jpeg;base64,{img_str}) !important;
+                background-size: cover !important;
+                background-position: center !important;
+                background-repeat: no-repeat !important;
+                background-attachment: fixed !important;
+            }}
+            /* Ensure the overlay doesn't block the background image */
+            .stApp::before {{
+                content: "";
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(15, 15, 15, 0.7);
+                z-index: -1;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+    
     # Upload section
     st.header("📁 Document Upload")
     index_name = "main-db"
@@ -205,7 +333,7 @@ with st.sidebar:
     dimensions = 1024
     embedding_model = "bge-m3:latest"
     uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
-    
+
     if uploaded_file is not None:
         with st.spinner("Processing PDF..."):
             # Save the uploaded file to a temporary location
@@ -224,22 +352,19 @@ with st.sidebar:
     st.markdown("---")
     model_type = st.selectbox(
         "Select Model",
-        ["Air","Pro","Max","cloud"],
+        ["Air","Pro","Max","STEM","cloud"],
         index=0
     )
     if model_type == "Air":
-        model_name = "llama3.2:1b" # change this to the actual model name
+        model_name = "gemma3:4b" # change this to the actual model name
     elif model_type == "Pro":
         model_name = "gemma3:12b-it-q8_0"
     elif model_type == "Max":
         model_name = "gemma3:27b-it-q8_0"
     elif model_type == "cloud":
-        model_name = "gemini-2.5-pro"
-       # Add Gemini API configuration
-    if model_type == "cloud":
-        gemini_api_key = st.text_input("Enter Gemini API Key", type="password")
-        if gemini_api_key:
-            genai.configure(api_key=gemini_api_key)
+        model_name = "gemini-2.0-flash-001"
+    elif model_type == "STEM":
+        model_name = "phi4:14b-q8_0"
 
     if st.button("🗑️ Clear Chat"):
         st.session_state.messages = []
@@ -247,7 +372,6 @@ with st.sidebar:
 
 
 with st.sidebar:
-    # ...existing code...
     if st.button("💾 Save Chat as PDF"):
         if st.session_state.messages:
             with st.spinner("Saving chat to PDF..."):
@@ -321,12 +445,12 @@ with col1:
         with st.chat_message("assistant", avatar="🤖"):
             message_placeholder = st.empty()
             full_response = ""
+            
             if model_type == "cloud":
-                response_generator =  chat_with_gemini(st.session_state.messages,prompt, file_content)
+                response_generator = chat_with_gemini(st.session_state.messages, prompt, file_content, None)
                 print("Gemini response generator:", response_generator)
                 full_response = response_generator
                 file_content = ""
-
             else:
                 if chat_mode == "Chat with Document":
                     response_generator = chat_with_doc(model_name, prompt)
@@ -334,20 +458,19 @@ with col1:
                     response_generator = basic_chat(model_name, prompt + file_content)
                     file_content = ""
                 elif chat_mode == "code Assistant":
-                    response_generator = chat_with_code( prompt , file_content)
+                    response_generator = chat_with_code(prompt, file_content)
                     file_content = ""
                 elif chat_mode == "Reasoning Assistant":
-                    response_generator = chat_with_reasoning_model(prompt,file_content)
+                    response_generator = chat_with_reasoning_model(prompt, file_content)
                     file_content = ""
 
                 for chunk in response_generator:
                     if isinstance(chunk, str):  # Ensure the chunk is a string
                         full_response += chunk
                         message_placeholder.markdown(full_response + "▌")  # Show typing effect
-            
+                    
                 message_placeholder.markdown(full_response)
             
-                
             # Add assistant response to history
             st.session_state.messages.append({
                 "role": "assistant", 
@@ -356,4 +479,4 @@ with col1:
         print(st.session_state.messages)
         
         st.rerun()
-        
+
