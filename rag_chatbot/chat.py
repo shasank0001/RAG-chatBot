@@ -46,7 +46,7 @@ def basic_chat(model_name,quetion):
     return response
 
 def chat_with_code(question, code):
-    model_name = "qwen2.5-coder:3b-instruct-q8_0"
+    model_name = "deepcoder:1.5b-preview-q8_0"
     ollama = OllamaLLM(
         model=model_name,
         streaming=True
